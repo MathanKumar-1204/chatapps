@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat App</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-gH2yIJqKdNHPEq0n4Mqa/HGKIhSkIHeL5AyhkYV8i59U5AR6csBvApHHNl/vI1Bx" crossorigin="anonymous">
+  <style>
+    .accordion-body {
+      max-height: 500px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: 10px;
+    }
+
+    .input-group {
+      margin-top: 10px;
+    }
+
+    .accordion-button {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  </style>
+</head>
+
+<body class="bg-warning">
+  <div class="container p-3">
+    <div class="row">
+      <div class="col">
+        <button onclick="back()" class="btn btn-primary" style="position:fixed;">Logout</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="row p-5">
+      <div class="col">
+        <h1 class="text-center">BLOCKCHAIN CHAT APP</h1>
+        
+      </div>
+    </div>
+
+    <div class="row justify-content-end">
+      <div class="col-6">
+        <h6 class="text-end" id="Profile"></h6>
+      </div>
+    </div>
+
+    <div class="accordion accordion-flush" id="accordionFlushExample">
+      <!-- Accordion items will be dynamically added here -->
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-A3rJD856KowSb7dwlZdYEkO39Gagi7vIsF0jrRAoQmDKKtQBHUuLZ9AsSv4jD4Xa"
+    crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/web3/1.7.4/web3.min.js"
+    integrity="sha512-oMd9Re3VgJcXuZJn9DN6X7S7JUc7xLYZ2UyZ85Mm/xzaW3lwBr4fV2zjuu/n5jY/Of/2JOx35CTa6zvQNxb31Q=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <script>
+    const myaccount = localStorage.getItem("myaddress");
+    const abi = [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "message",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "timestamp",
+          "type": "string"
+        }
+      ],
+      "name": "message",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_to",
+          "type": "address"
+        },
+        {
+          "internalType": "string",
+          "name": "_message",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "time",
+          "type": "string"
+        }
+      ],
+      "name": "sendMessage",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ];
+    const contractAddress = '0x94662E4Dd3Cd9a181126A4Da52F38bE7F2CB1ABF';
+
+    window.onload = function () {
+      if (myaccount === null) {
+        window.location.replace('index.html');
+      } else {
+        document.getElementById('Profile').innerText = "ACCOUNT:"+myaccount; // Display account address
+        add();
+      }
+    };
+
+    function back() {
+      localStorage.removeItem("myaddress");
+      window.location.replace('index.html');
+    }
+
+    function createMessageHTML(message, timestamp, isReceived) {
+      const alignment = isReceived ? 'justify-content-end' : 'justify-content-start';
+      const alertClass = isReceived ? 'alert-dark' : 'alert-primary';
+      return `
+        <div class="row ${alignment}">
+          <div class="col-4 col-md-auto">
+            <div class="alert ${alertClass}" role="alert">
+              ${message}
+              <h6 style="font-size: 0.6em;">${isReceived ? 'received' : 'sent'} ${timestamp}</h6>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function addMessages(a) {
+      const id = "messagepart" + a.id;
+      const web3 = new Web3(new Web3.providers.HttpProvider("http://127.0.0.1:7545"));
+      const mycontract = new web3.eth.Contract(abi, contractAddress);
+
+      mycontract.getPastEvents('message', { fromBlock: 0, toBlock: 'latest' })
+        .then(data => {
+          let html = '';
+          data.forEach(event => {
+            const { from, message, to, timestamp } = event.returnValues;
+            if (from === a.id && to === myaccount) {
+              html += createMessageHTML(message, timestamp, true);
+            } else if (to === a.id && from === myaccount) {
+              html += createMessageHTML(message, timestamp, false);
+            }
+          });
+          const messagePart = document.getElementById(id);
+          if (messagePart) {
+            messagePart.innerHTML = html;
+            messagePart.scrollTop = messagePart.scrollHeight; // Scroll to the bottom
+          }
+        })
+        .catch(err => console.error("Error fetching events:", err));
+    }
+
+    function onSend() {
+      const activeButton = document.querySelector(".accordion-button:not(.collapsed)");
+      if (!activeButton) {
+        alert("No active chat selected.");
+        return;
+      }
+      const to = activeButton.getAttribute("data-bs-target").replace("#flush-collapse", "");
+      const inputElement = document.getElementById("inputField" + to);
+      const message = inputElement ? inputElement.value : '';
+      const web3 = new Web3(new Web3.providers.HttpProvider("http://127.0.0.1:7545"));
+      const mycontract = new web3.eth.Contract(abi, contractAddress);
+      const date = new Date().toLocaleDateString("IN");
+      const time = new Date().toLocaleTimeString("IN").split('.')[0];
+      const accurateTime = `${date} ${time}`;
+
+      mycontract.methods.sendMessage(to, message, accurateTime).send({ from: myaccount })
+        .then(() => {
+          const messageHTML = createMessageHTML(message, accurateTime, false);
+          const messagePart = document.getElementById("messagepart" + to);
+          if (messagePart) {
+            messagePart.innerHTML += messageHTML;
+            messagePart.scrollTop = messagePart.scrollHeight; // Scroll to the bottom
+          }
+          inputElement.value = ''; // Clear input field after sending
+        })
+        .catch(err => console.error("Error sending message:", err));
+    }
+
+    function add() {
+      let web3 = new Web3(new Web3.providers.HttpProvider("http://127.0.0.1:7545"));
+      web3.eth.getAccounts(function (error, accounts) {
+        var n = accounts.length;
+        var temp = '';
+        for (var i = 0; i < n; i++) {
+          if (accounts[i] == myaccount) {
+            continue;
+          }
+          temp += `<div class="accordion-item p-3 border-primary bg-dark">
+    <h2 class="accordion-header" id="flush-heading${accounts[i]}">
+      <button id="${accounts[i]}"class="accordion-button collapsed" type="button" onclick=addMessages(this) data-bs-toggle="collapse" data-bs-target="#flush-collapse${accounts[i]}" aria-expanded="false" aria-controls="flush-collapse${accounts[i]}">
+        ${accounts[i]}
+      </button>
+    </h2>
+    <div id="flush-collapse${accounts[i]}" class="accordion-collapse collapse" aria-labelledby="flush-heading${accounts[i]}" data-bs-parent="#accordionFlushExample">
+      <div class="accordion-body" id="messagepart${accounts[i]}"></div>
+      <div class="input-group mb-0">
+        <input type="text" class="form-control" placeholder="Type message" id="inputField${accounts[i]}" aria-label="Message" aria-describedby="button-addon${accounts[i]}" />
+        <button class="btn btn-primary" type="button" id="button-addon${accounts[i]}" onclick="onSend()">Send</button>
+      </div>
+    </div>
+  </div>`;
+        }
+        document.getElementById('accordionFlushExample').innerHTML = temp;
+      });
+    }
+  </script>
+</body>
+
+</html>
